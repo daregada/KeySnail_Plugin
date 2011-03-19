@@ -4,7 +4,7 @@ var PLUGIN_INFO =
     <name lang="ja">文を選択</name>
     <description>Select a sentence around your selection (or caret)</description>
     <description lang="ja">セレクション(あるいはキャレット)周囲の文を選択します</description>
-    <version>1.00</version>
+    <version>1.0</version>
     <updateURL>http://github.com/daregada/KeySnail_Plugin/raw/master/select_sentence.ks.js</updateURL>
     <author mail="daichi14657@gmail.com" homepage="http://daregada.blogspot.com/">Daregada</author>
     <license>The MIT License</license>
@@ -13,19 +13,41 @@ var PLUGIN_INFO =
     <provides>
         <ext>select_sentence</ext>
     </provides>
+    <detail><![CDATA[
+=== Usage ===
+==== Setting ====
+
+You can paste code below to your .keysnail.js file.
+
+>|javascript|
+key.setViewKey('C-1',
+    function (ev, arg) {
+        ext.exec("select_sentence", arg);
+    }, ext.description("select_sentence"), true);
+||<
+
+In this example, you can start select_sentence by pressing C-1 key in the view mode.
+
+==== Action ====
+Click or drag any text-node and call select_sentence, and you can select automatically the sentence around caret (or selection).  You do NOT have to enter caret-mode (F7 key).
+This select_sentence searches head and tail of the sentence from the text-node that you click and its sibling nodes.
+==== Target languages ====
+- English et al.
+- Japanese
+]]></detail>
     <detail lang="ja"><![CDATA[
 === 使い方 ===
 ==== 起動 ====
 M-x (または ext.select() を呼出すキーバインド) から select_sentence を選ぶと起動します。
 次のようにして任意のキーへコマンドを割り当てておくことも可能です。
->||
+>|javascript|
 key.setViewKey('C-1',
     function (ev, arg) {
         ext.exec("select_sentence", arg);
     }, ext.description("select_sentence"), true);
 ||<
 例えば上記のような設定を初期化ファイル(.keysnail.jsなど)へ記述しておくことにより、ブラウズ画面で C-1 と押すことで起動します。
-==== アクションの選択 ====
+==== アクション ====
 対象となるテキストの適当な位置をクリックしてから呼び出すと、その文の先頭と末尾を検索して文全体を選択します。いちいちF7キーを押してキャレットモードにする必要はありません。
 検索対象は、クリックしたテキストノードおよびその兄弟ノードです。繰り返し呼び出すと、検索対象に含まれる次の文も選択に追加されます。
 ==== 選択できる言語の種類と文末判定 ====
