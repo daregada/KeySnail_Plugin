@@ -2,7 +2,7 @@ var PLUGIN_INFO =
 <KeySnailPlugin>
     <name>Selection Sentence</name>
     <name lang="ja">文を選択</name>
-    <description>Select a sentence around selection (or caret)</description>
+    <description>Select a sentence around your selection (or caret)</description>
     <description lang="ja">セレクション(あるいはキャレット)周囲の文を選択します</description>
     <version>1.00</version>
     <updateURL>http://github.com/daregada/KeySnail_Plugin/raw/master/select_sentence.ks.js</updateURL>
@@ -25,15 +25,12 @@ key.setViewKey('C-1',
     }, ext.description("select_sentence"), true);
 ||<
 例えば上記のような設定を初期化ファイル(.keysnail.jsなど)へ記述しておくことにより、ブラウズ画面で C-1 と押すことで起動します。
-
 ==== アクションの選択 ====
 対象となるテキストの適当な位置をクリックしてから呼び出すと、その文の先頭と末尾を検索して文全体を選択します。いちいちF7キーを押してキャレットモードにする必要はありません。
 検索対象は、クリックしたテキストノードおよびその兄弟ノードです。繰り返し呼び出すと、検索対象に含まれる次の文も選択に追加されます。
-
 ==== 選択できる言語の種類と文末判定 ====
 - 英語 (および「.」と空白類で文末を示す他の言語)
 - 日本語 (および「。」または「．」で文末を示す他の言語)
-
 ]]></detail>
 </KeySnailPlugin>;
 
