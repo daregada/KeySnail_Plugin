@@ -127,39 +127,31 @@ function select_sentence() {
     var range = content.getSelection().getRangeAt(0);
     if (range.startContainer.nodeType !== Node.TEXT_NODE ||
 	range.endContainer.nodeType !== Node.TEXT_NODE) {
-	// 開始位置または終了位置がテキストノードでない場合は終了
 	alert('Selection (or caret) is not in any text node');
 	return;
     }
 
-    // startContainerノードのオフセットstartOffsetから文書先頭方向に前の文の末尾を探す
+
     var currentNode = range.startContainer;
-    // startContainerノードだけは特別扱い(startOffsetより後を検索しないように)
     searchSentenceHead(currentNode, range.startOffset);
 
-    // startContainerより文書先頭方向の兄弟ノードをめぐる
     while (headNode === null && currentNode.previousSibling !== null) {
 	currentNode = currentNode.previousSibling;
 	searchSentenceHead(currentNode);
     }
     if (headNode === null) {
-	// 先頭の兄弟ノードまで到達しても前の文の文末が見つからなかったら
 	headNode = currentNode;
 	headIndex = 0;
     }
 
-    // endContainerノードのオフセットendOffsetから文書末尾方向に文末を探す
     currentNode = range.endContainer;
-    // endContainerノードだけは特別扱い(endOffsetより前を検索しないように)
     searchSentenceTail(currentNode, range.endOffset);
 
-    // endContainerより文書末尾方向の兄弟ノードをめぐる
     while (tailNode === null && currentNode.nextSibling !== null) {
 	currentNode = currentNode.nextSibling;
 	searchSentenceTail(currentNode);
     }
     if (tailNode === null) {
-	// 末尾の兄弟ノードまで到達しても文末が見つからなかったら
 	tailNode = currentNode;
 	tailIndex = (tailNode.nodeValue) ? tailNode.nodeValue.length : 0;
     }
@@ -169,7 +161,6 @@ function select_sentence() {
 	return;
     }
 
-    // 先頭と末尾のホワイトスペースを取り除く
     if (headNode.nodeType === Node.TEXT_NODE) {
 	var str = headNode.nodeValue.substr(headIndex);
 	var tmpIndex = str.search(/\S/);
@@ -185,7 +176,6 @@ function select_sentence() {
 	}
     }
 
-    // 最終的に得られた範囲を選択する
     content.getSelection().removeAllRanges();
     range.setStart(headNode, headIndex);
     range.setEnd(tailNode, tailIndex);
