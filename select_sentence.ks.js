@@ -78,7 +78,7 @@ function select_sentence() {
 	}
 
 	var str = node.nodeValue;
-	if (typeof opt_offset !== "undefined") {
+	if (typeof opt_offset !== 'undefined') {
 	    str = str.substr(0, opt_offset);
 	}
 	headIndex = 0;
@@ -117,7 +117,7 @@ function select_sentence() {
 	    tailNode = node;
 	    tailIndex += opt_offset;
 	    var nextChar = tailNode.nodeValue.charAt(tailIndex);
-	    if (nextChar === '.' || nextChar === L('。') || nextChar === L('．')) {
+	    if (nextChar.search(/\s/) < 0) {
 		tailIndex++;
 	    }
 	}
