@@ -4,7 +4,7 @@ var PLUGIN_INFO =
     <name lang="ja">文を選択</name>
     <description>Select a whole sentence around your selection (or caret)</description>
     <description lang="ja">セレクション(あるいはキャレット)周囲の文を選択します</description>
-    <version>1.1</version>
+    <version>1.2</version>
     <updateURL>http://github.com/daregada/KeySnail_Plugin/raw/master/select_sentence.ks.js</updateURL>
     <author mail="daichi14657@gmail.com" homepage="http://daregada.blogspot.com/">Daregada</author>
     <license>The MIT License</license>
@@ -49,143 +49,226 @@ key.setGlobalKey('C-1',
 
 なお、論理的な意味での文が、ヘッダーやフッターなどによって複数のパーツに分割されている場合は、ドラッグ(2箇所目以降はCtrl-ドラッグ)で、各パーツの一部を選択してから呼び出す必要があります。
 ==== 選択できる言語の種類と文末判定 ====
-- 英語 (および「.」と空白類で文末を示す他の言語)
+- 英語 (および「.」または「!」とそれに続く空白類で文末を示す他の言語)
 - 日本語 (および「。」または「．」で文末を示す他の言語)
 ]]></detail>
 </KeySnailPlugin>;
 
 function select_sentence() {
-    var sentenceEndPattern = new RegExp(L('\\.\\s+|\\n{2,}|[。．]'), 'g');
+    var sentenceEndPattern = new RegExp(L('[.!]\\s+|(\\r\\n|\\n|\\r|\u2028){2,}|[。．\u2029]'), 'g');
     var headNode, headIndex, tailNode, tailIndex;
+    var baseTextNode, baseTextNodeValue, brCount;
 
-    function searchSentenceHead(node, opt_offset) {
-	if (node.nodeType !== Node.TEXT_NODE) {
-	    if (!node.hasChildNodes()) {
-		return;
-	    }
-	    for (var i = node.childNodes.length - 1; i >= 0; i--) {
-		searchSentenceHead(node.childNodes[i]);
-		if (headNode !== null) {
-		    break;
-		}
-	    }
-	    return;
-	}
+    function searchHeadOfSentence(node, opt_offset) {
+        function searchHeadByBrElements() {
+            // view one BR as one newline
+            brCount += 1;
+            var str = new Array(brCount + 1).join('\n');
+            str += baseTextNodeValue;
 
-	var str = node.nodeValue;
-	if (typeof opt_offset !== 'undefined') {
-	    str = str.substr(0, opt_offset);
-	}
-	headIndex = 0;
-	var tmpArray = sentenceEndPattern.exec(str);
-	while (tmpArray) {
-	    headIndex = sentenceEndPattern.lastIndex;
-	    tmpArray = sentenceEndPattern.exec(str);
-	}
-	if (headIndex > 0) {
-	    headNode = node;
-	}
-	return;
+            var tmpIndex = str.search(sentenceEndPattern);
+
+            if (tmpIndex >= 0 && tmpIndex < brCount) {
+                headNode = baseTextNode;
+                headIndex = 0;
+            }
+            return;
+        }
+
+        function searchHeadInTextNode() {
+            var str = node.nodeValue.substr(0, opt_offset);
+            if (brCount > 0) {
+                str += new Array(brCount + 1).join('\n');
+            }
+            if (baseTextNode !== null) {
+                str += baseTextNodeValue;
+            }
+
+            var tmpIndex = -1;
+            var tmpArray = sentenceEndPattern.exec(str);
+            while (tmpArray) {
+                tmpIndex = sentenceEndPattern.lastIndex;
+                tmpArray = sentenceEndPattern.exec(str);
+            }
+
+            if (tmpIndex > 0) {
+                if (tmpIndex <= node.nodeValue.length) {
+                    headNode = node;
+                    headIndex = tmpIndex;
+                } else {
+                    headNode = baseTextNode;
+                    headIndex = 0;
+                }
+            }
+            return;
+        }
+
+        if (node.nodeType === Node.TEXT_NODE) {
+            if (typeof opt_offset === 'undefined') {
+                opt_offset =  node.nodeValue.length;
+            }
+            searchHeadInTextNode();
+            if (headNode === null) {
+                baseTextNode = node;
+                baseTextNodeValue = node.nodeValue.substr(0, opt_offset);
+                brCount = 0;
+            }
+        } else if (node.nodeName === 'BR') {
+            searchHeadByBrElements();
+        } else if (node.hasChildNodes()) {
+            for (var i = node.childNodes.length - 1; i >= 0; i -= 1) {
+                searchHeadOfSentence(node.childNodes[i]);
+                if (headNode !== null) {
+                    break;
+                }
+            }
+        }
+        return;
     }
 
-    function searchSentenceTail(node, opt_offset) {
-	if (node.nodeType !== Node.TEXT_NODE) {
-	    if (!node.hasChildNodes()) {
-		return;
-	    }
-	    for (var i = 0; i < node.childNodes.length; i++) {
-		searchSentenceTail(node.childNodes[i]);
-		if (tailNode !== null) {
-		    break;
-		}
-	    }
-	    return;
-	}
+    function searchTailOfSentence(node, opt_offset) {
+        function searchTailByBrElements() {
+            // view one BR as one newline
+            brCount += 1;
+            var str = baseTextNodeValue;
+            str += new Array(brCount + 1).join('\n');
 
-	var str = node.nodeValue;
-	opt_offset = opt_offset ? opt_offset : 0;
-	if (opt_offset > 0) {
-	    str = str.substr(opt_offset);
-	}
-	tailIndex = str.search(sentenceEndPattern);
-	if (tailIndex >= 0) {
-	    tailNode = node;
-	    tailIndex += opt_offset;
-	    var nextChar = tailNode.nodeValue.charAt(tailIndex);
-	    if (nextChar.search(/\s/) < 0) {
-		tailIndex++;
-	    }
-	}
-	return;
+            var tmpIndex = str.search(sentenceEndPattern);
+
+            if (tmpIndex >= 0) {
+                tailNode = baseTextNode;
+                tailIndex = baseTextNode.nodeValue.length;
+            }
+            return;
+        }
+
+        function searchTailInTextNode() {
+            var str = node.nodeValue.substr(opt_offset);
+            var preNodeLength = 0;
+            if (brCount > 0) {
+                str = new Array(brCount + 1).join('\n') + str;
+                preNodeLength += brCount;
+            }
+            if (baseTextNode !== null) {
+                str = baseTextNodeValue + str;
+                preNodeLength += baseTextNodeValue.length;
+            }
+
+            var tmpIndex = str.search(sentenceEndPattern);
+            if (tmpIndex >= 0) {
+                if (tmpIndex >= preNodeLength) {
+                    tailNode = node;
+                    tailIndex = tmpIndex + opt_offset - preNodeLength;
+                } else {
+                    tailNode = baseTextNode;
+                    tailIndex = baseTextNode.nodeValue.length;
+                }
+                if (tailNode.nodeValue.charAt(tailIndex).search(/\s/) < 0) {
+                    tailIndex += 1;
+                }
+            }
+            return;
+        }
+
+        if (node.nodeType === Node.TEXT_NODE) {
+            if (typeof opt_offset === 'undefined') {
+                opt_offset =  0;
+            }
+            searchTailInTextNode();
+            if (tailNode === null) {
+                baseTextNode = node;
+                baseTextNodeValue = baseTextNode.nodeValue.substr(opt_offset);
+                brCount = 0;
+            }
+        } else if (node.nodeName === 'BR') {
+            searchTailByBrElements();
+        } else if (node.hasChildNodes()) {
+            for (var i = 0; i < node.childNodes.length; i += 1) {
+                searchTailOfSentence(node.childNodes[i]);
+                if (tailNode !== null) {
+                    break;
+                }
+            }
+        }
+        return;
     }
 
-    function stretchRange(range, index) {
-	if (range.startContainer.nodeType !== Node.TEXT_NODE ||
-	    range.endContainer.nodeType !== Node.TEXT_NODE) {
-	    alert('Selection (or caret) [' + range + '] is not in any text node');
-	    return;
-	}
+    function stretchRange(range, isFirstRange) {
+        var str, tmpIndex;
 
-	headNode = tailNode = null;
-	headIndex = tailIndex = -1;
+        if (range.startContainer.nodeType !== Node.TEXT_NODE ||
+            range.endContainer.nodeType !== Node.TEXT_NODE) {
+            alert('Selection (or caret) is not in any text node');
+            return;
+        }
 
-	var currentNode = range.startContainer;
-	searchSentenceHead(currentNode, range.startOffset);
-	while (headNode === null && currentNode.previousSibling !== null) {
-	    currentNode = currentNode.previousSibling;
-	    searchSentenceHead(currentNode);
-	}
-	if (headNode === null) {
-	    headNode = currentNode;
-	    headIndex = 0;
-	}
+        headNode = tailNode = null;
+        headIndex = tailIndex = -1;
 
-	currentNode = range.endContainer;
-	searchSentenceTail(currentNode, range.endOffset);
-	while (tailNode === null && currentNode.nextSibling !== null) {
-	    currentNode = currentNode.nextSibling;
-	    searchSentenceTail(currentNode);
-	}
-	if (tailNode === null) {
-	    tailNode = currentNode;
-	    tailIndex = (tailNode.nodeValue) ? tailNode.nodeValue.length : 0;
-	}
+        baseTextNode = null;
+        baseTextNodeValue = "";
+        brCount = 0;
+        var currentNode = range.startContainer;
 
-	if (headNode === null || tailNode === null) {
-	    alert('headNode or tailNode is null');
-	    return;
-	}
+        searchHeadOfSentence(currentNode, range.startOffset);
+        while (headNode === null && currentNode.previousSibling !== null) {
+            currentNode = currentNode.previousSibling;
+            searchHeadOfSentence(currentNode);
+        }
+        if (headNode === null) {
+            headNode = currentNode;
+            headIndex = 0;
+        }
 
-	if (headNode.nodeType === Node.TEXT_NODE) {
-	    var str = headNode.nodeValue.substr(headIndex);
-	    var tmpIndex = str.search(/\S/);
-	    if (tmpIndex > 0) {
-		headIndex += tmpIndex;
-	    }
-	    if (index > 0 && headIndex > 0 &&
-		headNode.nodeValue.substr(headIndex - 1, 1).search(/\s/) >= 0) {
-		headIndex--;
-	    }
-	}
-	if (tailNode.nodeType === Node.TEXT_NODE) {
-	    var str = tailNode.nodeValue.substr(0, tailIndex);
-	    var tmpIndex = str.search(/\s$/);
-	    if (tmpIndex > 0) {
-		tailIndex = tmpIndex;
-	    }
-	}
+        baseTextNode = null;
+        baseTextNodeValue = "";
+        brCount = 0;
+        currentNode = range.endContainer;
 
-	range.setStart(headNode, headIndex);
-	range.setEnd(tailNode, tailIndex);
-	return;
+        searchTailOfSentence(currentNode, range.endOffset);
+        while (tailNode === null && currentNode.nextSibling !== null) {
+            currentNode = currentNode.nextSibling;
+            searchTailOfSentence(currentNode);
+        }
+        if (tailNode === null) {
+            tailNode = currentNode;
+            tailIndex = (tailNode.nodeValue) ? tailNode.nodeValue.length : 0;
+        }
+
+        if (headNode === null || tailNode === null) {
+            alert('headNode or tailNode is null');
+            return;
+        }
+
+        if (headNode.nodeType === Node.TEXT_NODE) {
+            str = headNode.nodeValue.substr(headIndex);
+            tmpIndex = str.search(/\S/);
+            if (tmpIndex > 0) {
+                headIndex += tmpIndex;
+            }
+            if (!isFirstRange && headIndex > 0 &&
+                headNode.nodeValue.substr(headIndex - 1, 1).search(/\s/) >= 0) {
+                headIndex -= 1;
+            }
+        }
+        if (tailNode.nodeType === Node.TEXT_NODE) {
+            str = tailNode.nodeValue.substr(0, tailIndex);
+            tmpIndex = str.search(/\s$/);
+            if (tmpIndex > 0) {
+                tailIndex = tmpIndex;
+            }
+        }
+
+        range.setStart(headNode, headIndex);
+        range.setEnd(tailNode, tailIndex);
+        return;
     }
 
-    var range;
-    for (var i = 0; i < content.getSelection().rangeCount; i++) {
-	range = content.getSelection().getRangeAt(i);
-	content.getSelection().removeRange(range);
-	stretchRange(range, i);
-	content.getSelection().addRange(range);
+    for (var i = 0; i < content.getSelection().rangeCount; i += 1) {
+        var range = content.getSelection().getRangeAt(i);
+        content.getSelection().removeRange(range);
+        stretchRange(range, !i);
+        content.getSelection().addRange(range);
     }
 
     return;
@@ -193,4 +276,4 @@ function select_sentence() {
 
 ext.add("select_sentence", select_sentence,
         M({ja: 'セレクション(あるいはキャレット)周囲の文を選択',
-           en: 'Select a sentence around selection (or caret)'}));
+           en: 'Select a whole sentence around selection (or caret)'}));
