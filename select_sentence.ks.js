@@ -4,7 +4,7 @@ var PLUGIN_INFO =
     <name lang="ja">文を選択</name>
     <description>Select a whole sentence around your selection (or caret)</description>
     <description lang="ja">セレクション(あるいはキャレット)周囲の文を選択します</description>
-    <version>1.2</version>
+    <version>1.3</version>
     <updateURL>http://github.com/daregada/KeySnail_Plugin/raw/master/select_sentence.ks.js</updateURL>
     <author mail="daichi14657@gmail.com" homepage="http://daregada.blogspot.com/">Daregada</author>
     <license>The MIT License</license>
@@ -21,7 +21,7 @@ You can paste code below to your .keysnail.js file.
 key.setGlobalKey('C-1',
     function (ev, arg) {
         ext.exec("select_sentence", arg);
-    }, ext.description("Select Sentence"), true);
+    }, ext.description("select_sentence"), true);
 ||<
 In this example, you can start select_sentence by pressing C-1 key in any mode.
 ==== Action ====
@@ -39,7 +39,7 @@ This select_sentence searches head and tail of the sentence from the clicked tex
 key.setGlobalKey('C-1',
     function (ev, arg) {
         ext.exec("select_sentence", arg);
-    }, ext.description("文を選択"), true);
+    }, ext.description("select_sentence"), true);
 ||<
 たとえば、上記のような設定を初期化ファイル(.keysnail.jsなど)に記述しておけば C-1 で起動します。
 ==== アクション ====
@@ -55,7 +55,8 @@ key.setGlobalKey('C-1',
 </KeySnailPlugin>;
 
 function select_sentence() {
-    var sentenceEndPattern = new RegExp(L('[.!]\\s+|(\\r\\n|\\n|\\r|\u2028){2,}|[。．\u2029]'), 'g');
+//    var sentenceEndPattern = new RegExp(L('[.!]\\s+|(\\r\\n|\\n|\\r|\u2028){2,}|[\u3002\uff0e\u2029]'), 'g');
+    var sentenceEndPattern = /[.!]\s+|(\r\n|\n|\r){2,}|[\u3002\uff0e\u2028\u2029]/g;
     var headNode, headIndex, tailNode, tailIndex;
     var baseTextNode, baseTextNodeValue, brCount;
 
@@ -163,10 +164,11 @@ function select_sentence() {
                     tailNode = baseTextNode;
                     tailIndex = baseTextNode.nodeValue.length;
                 }
-                if (tailNode.nodeValue.charAt(tailIndex).search(/\s/) < 0) {
+                if (tailIndex < tailNode.nodeValue.length &&
+                    tailNode.nodeValue.charAt(tailIndex).search(/\s/) < 0) {
                     tailIndex += 1;
                 }
-            }
+           }
             return;
         }
 
@@ -264,11 +266,13 @@ function select_sentence() {
         return;
     }
 
-    for (var i = 0; i < content.getSelection().rangeCount; i += 1) {
-        var range = content.getSelection().getRangeAt(i);
-        content.getSelection().removeRange(range);
+
+    var wrapper = new XPCNativeWrapper(window.content.window);
+    for (var i = 0; i < wrapper.getSelection().rangeCount; i += 1) {
+        var range = wrapper.getSelection().getRangeAt(i);
+        wrapper.getSelection().removeRange(range);
         stretchRange(range, !i);
-        content.getSelection().addRange(range);
+        wrapper.getSelection().addRange(range);
     }
 
     return;
