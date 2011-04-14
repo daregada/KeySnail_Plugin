@@ -4,7 +4,7 @@ var PLUGIN_INFO =
     <name lang="ja">文を選択</name>
     <description>Select a whole sentence around your selection (or caret)</description>
     <description lang="ja">セレクション(あるいはキャレット)周囲の文を選択します</description>
-    <version>1.4</version>
+    <version>1.5</version>
     <updateURL>http://github.com/daregada/KeySnail_Plugin/raw/master/select_sentence.ks.js</updateURL>
     <author mail="daichi14657@gmail.com" homepage="http://daregada.blogspot.com/">Daregada</author>
     <license>The MIT License</license>
@@ -55,28 +55,26 @@ key.setGlobalKey('C-1',
 </KeySnailPlugin>;
 
 function select_sentence() {
-    var sentenceEndPattern = /[.!?](?:\[.*?\]|[")])*\s|(\r\n|\n|\r)(?=\1+)|[\u3002\uff0e\u2028\u2029]/g;
-    var head = {}, tail = {};
-    var headString, tailString;
-    var headArray = [], tailArray = [];
+    const sentenceEndPattern = /[.!?](?:\[.*?\]|[")])*\s|(\r\n|\n|\r)(?=\1+)|[\u3002\uff0e\u2028\u2029]/g;
+    var head = { info: [] }, tail = { info: [] };
     var range, wrapper;
 
     function searchHeadNodeAndIndex(targetNode, isRangeStartContainer) {
         function searchHeadPattern() {
             var tmpIndex = -1;
-            var tmpArray = sentenceEndPattern.exec(headString);
+            var tmpArray = sentenceEndPattern.exec(head.string);
             while (tmpArray) {
                 tmpIndex = sentenceEndPattern.lastIndex;
-                tmpArray = sentenceEndPattern.exec(headString);
+                tmpArray = sentenceEndPattern.exec(head.string);
             }
             if (tmpIndex <= 0) {
                 return;
             }
-            for (let i = headArray.length - 1; i >= 0; i -= 1) {
-                if (tmpIndex >= headArray[i].offset) {
-                    head.node = headArray[i].node;
-                    head.index = (head.node.nodeType === Node.TEXT_NODE) ?
-                        tmpIndex - headArray[i].offset : 0;
+            for (let i = head.info.length - 1; i >= 0; i -= 1) {
+                if (tmpIndex >= head.info[i].offset) {
+                    head.foundNode = head.info[i].node;
+                    head.foundIndex = (head.foundNode.nodeType === Node.TEXT_NODE) ?
+                        tmpIndex - head.info[i].offset : 0;
                     return;
                 }
             }
@@ -86,11 +84,11 @@ function select_sentence() {
         function searchHeadByBrElements() {
             // view one BR as one newline
             var str = '\n';
-            for (let i = 0; i < headArray.length; i += 1) {
-                headArray[i].offset += str.length;
+            for (let i = 0; i < head.info.length; i += 1) {
+                head.info[i].offset += str.length;
             }
-            headArray.unshift({ node: targetNode, offset: 0 });
-            headString = str + headString;
+            head.info.unshift({ node: targetNode, offset: 0 });
+            head.string = str + head.string;
             searchHeadPattern();
             return;
         }
@@ -100,11 +98,11 @@ function select_sentence() {
             if (isRangeStartContainer) {
                 str = str.substr(0, range.startOffset);
             }
-            for (let i = 0; i < headArray.length; i += 1) {
-                headArray[i].offset += str.length;
+            for (let i = 0; i < head.info.length; i += 1) {
+                head.info[i].offset += str.length;
             }
-            headArray.unshift({ node: targetNode, offset: 0 });
-            headString = str + headString;
+            head.info.unshift({ node: targetNode, offset: 0 });
+            head.string = str + head.string;
             searchHeadPattern();
             return;
         }
@@ -117,7 +115,7 @@ function select_sentence() {
         } else if (targetNode.hasChildNodes()) {
             for (let i = targetNode.childNodes.length - 1; i >= 0; i -= 1) {
                 searchHeadNodeAndIndex(targetNode.childNodes[i], false);
-                if (head.node !== null) {
+                if (head.foundNode !== null) {
                     break;
                 }
             }
@@ -128,23 +126,23 @@ function select_sentence() {
     function searchTailNodeAndIndex(targetNode, isRangeEndContainer) {
         function searchTailPattern() {
             var tmpIndex = -1;
-            if (sentenceEndPattern.exec(tailString)) {
+            if (sentenceEndPattern.exec(tail.string)) {
                 tmpIndex = sentenceEndPattern.lastIndex;
             }
             if (tmpIndex <= 0) {
                 return;
             }
-            for (let i = tailArray.length - 1; i >= 0; i -= 1) {
-                if (tmpIndex >= tailArray[i].offset) {
-                    tail.node = tailArray[i].node;
-                    tail.index = 0;
-                    if (tail.node.nodeType === Node.TEXT_NODE) {
-                        tail.index = tmpIndex - tailArray[i].offset;
-                        if (tail.node === range.endContainer) {
-                            tail.index += range.endOffset;
+            for (let i = tail.info.length - 1; i >= 0; i -= 1) {
+                if (tmpIndex >= tail.info[i].offset) {
+                    tail.foundNode = tail.info[i].node;
+                    tail.foundIndex = 0;
+                    if (tail.foundNode.nodeType === Node.TEXT_NODE) {
+                        tail.foundIndex = tmpIndex - tail.info[i].offset;
+                        if (tail.foundNode === range.endContainer) {
+                            tail.foundIndex += range.endOffset;
                         }
-                    } else if (tail.node.hasChildNodes()) {
-                        tail.index = tail.node.childNodes.length;
+                    } else if (tail.foundNode.hasChildNodes()) {
+                        tail.foundIndex = tail.foundNode.childNodes.length;
                     }
                     return;
                 }
@@ -155,8 +153,8 @@ function select_sentence() {
         function searchTailByBrElements() {
             // view one BR as one newline
             var str = '\n';
-            tailArray.push({ node: targetNode, offset: tailString.length });
-            tailString += str;
+            tail.info.push({ node: targetNode, offset: tail.string.length });
+            tail.string += str;
             searchTailPattern();
             return;
         }
@@ -166,8 +164,8 @@ function select_sentence() {
             if (isRangeEndContainer) {
                 str = str.substr(range.endOffset);
             }
-            tailArray.push({ node: targetNode, offset: tailString.length });
-            tailString += str;
+            tail.info.push({ node: targetNode, offset: tail.string.length });
+            tail.string += str;
             searchTailPattern();
             return;
         }
@@ -180,7 +178,7 @@ function select_sentence() {
         } else if (targetNode.hasChildNodes()) {
             for (let i = 0; i < targetNode.childNodes.length; i += 1) {
                 searchTailNodeAndIndex(targetNode.childNodes[i], false);
-                if (tail.node !== null) {
+                if (tail.foundNode !== null) {
                     break;
                 }
             }
@@ -191,21 +189,21 @@ function select_sentence() {
     function searchHeadOfSentence() {
         var  currentNode = range.startContainer;
         searchHeadNodeAndIndex(currentNode, true);
-        while (head.node === null && currentNode.previousSibling !== null) {
+        while (head.foundNode === null && currentNode.previousSibling !== null) {
             currentNode = currentNode.previousSibling;
             searchHeadNodeAndIndex(currentNode, false);
         }
-        if (head.node === null) {
-            head.node = currentNode;
+        if (head.foundNode === null) {
+            head.foundNode = currentNode;
             // find first TEXT_NODE
-            for (let i = 0; i < headArray.length; i += 1) {
-                if (headArray[i].node.nodeType === Node.TEXT_NODE) {
-                    head.node = headArray[i].node;
+            for (let i = 0; i < head.info.length; i += 1) {
+                if (head.info[i].node.nodeType === Node.TEXT_NODE) {
+                    head.foundNode = head.info[i].node;
                     break;
                 }
             }
             // set index before the first char OR the first child node
-            head.index = 0;
+            head.foundIndex = 0;
         }
         return;
     }
@@ -213,92 +211,92 @@ function select_sentence() {
     function searchTailOfSentence() {
         var currentNode = range.endContainer;
         searchTailNodeAndIndex(currentNode, true);
-        while (tail.node === null && currentNode.nextSibling !== null) {
+        while (tail.foundNode === null && currentNode.nextSibling !== null) {
             currentNode = currentNode.nextSibling;
             searchTailNodeAndIndex(currentNode, false);
         }
-        if (tail.node === null) {
-            tail.node = currentNode;
+        if (tail.foundNode === null) {
+            tail.foundNode = currentNode;
             // find last TEXT_NODE
-            for (let i = tailArray.length - 1; i >= 0; i -= 1) {
-                if (tailArray[i].node.nodeType === Node.TEXT_NODE) {
-                    tail.node = tailArray[i].node;
+            for (let i = tail.info.length - 1; i >= 0; i -= 1) {
+                if (tail.info[i].node.nodeType === Node.TEXT_NODE) {
+                    tail.foundNode = tail.info[i].node;
                     break;
                 }
             }
             // set index after the last char OR the last child node
-            tail.index = (tail.node.nodeValue) ?
-                tail.node.nodeValue.length : tail.node.childNodes.length;
+            tail.foundIndex = (tail.foundNode.nodeValue) ?
+                tail.foundNode.nodeValue.length : tail.foundNode.childNodes.length;
         }
         return;
     }
 
     function chopHeadOfSentence() {
         var str, tmpIndex;
-        if (head.node.nodeType !== Node.TEXT_NODE) {
+        if (head.foundNode.nodeType !== Node.TEXT_NODE) {
             return;
         }
-        // find head.node in headArray
+        // find head.foundNode in head.info
         var arrayIndex = -1;
-        for (let i = 0; i < headArray.length; i += 1) {
-            if (head.node == headArray[i].node) {
+        for (let i = 0; i < head.info.length; i += 1) {
+            if (head.foundNode == head.info[i].node) {
                 arrayIndex = i;
                 break;
             }
         }
-        str = headString.substr(headArray[arrayIndex].offset + head.index);
+        str = head.string.substr(head.info[arrayIndex].offset + head.foundIndex);
         tmpIndex = str.search(/\S/);
 
         if (tmpIndex > 0) {
-            let indexInHeadString = headArray[arrayIndex].offset + head.index + tmpIndex;
-            let foundIndex = headArray.length - 1;
-            for (let i = 0; i < headArray.length - 1; i += 1) {
-                if (indexInHeadString < headArray[i + 1].offset) {
+            let indexInHeadString = head.info[arrayIndex].offset + head.foundIndex + tmpIndex;
+            let foundIndex = head.info.length - 1;
+            for (let i = 0; i < head.info.length - 1; i += 1) {
+                if (indexInHeadString < head.info[i + 1].offset) {
                     foundIndex = i;
                     break;
                 }
             }
-            head.node = headArray[foundIndex].node;
-            head.index = (head.node.nodeType === Node.TEXT_NODE) ?
-                indexInHeadString - headArray[foundIndex].offset: 0;
+            head.foundNode = head.info[foundIndex].node;
+            head.foundIndex = (head.foundNode.nodeType === Node.TEXT_NODE) ?
+                indexInHeadString - head.info[foundIndex].offset: 0;
         }
         return;
     }
 
     function chopTailOfSentence(isLastRange) {
         var str, tmpIndex;
-        if (tail.node.nodeType !== Node.TEXT_NODE) {
+        if (tail.foundNode.nodeType !== Node.TEXT_NODE) {
             return;
         }
-        // find tail.node in tailArray
+        // find tail.foundNode in tail.info
         var arrayIndex = -1;
-        for (let i = 0; i < tailArray.length; i += 1) {
-            if (tail.node == tailArray[i].node) {
+        for (let i = 0; i < tail.info.length; i += 1) {
+            if (tail.foundNode == tail.info[i].node) {
                 arrayIndex = i;
                 break;
             }
         }
 
         str = (arrayIndex > 0) ?
-            tailString.substr(0, tailArray[arrayIndex].offset + tail.index) :
-            tailString.substr(0, tail.index - range.endOffset);
+            tail.string.substr(0, tail.info[arrayIndex].offset + tail.foundIndex) :
+            tail.string.substr(0, tail.foundIndex - range.endOffset);
         tmpIndex = str.search(/\s+$/);
 
         if (tmpIndex >= 0) {
             if (!isLastRange) {
                 tmpIndex += 1;
             }
-            for (let i = tailArray.length - 1; i > 0; i -= 1) {
-                if (tmpIndex >= tailArray[i].offset) {
-                    tail.node = tailArray[i].node;
-                    tail.index = (tail.node.nodeType === Node.TEXT_NODE) ?
-                        tmpIndex - tailArray[i].offset : tail.node.childNodes.length;
+            for (let i = tail.info.length - 1; i > 0; i -= 1) {
+                if (tmpIndex >= tail.info[i].offset) {
+                    tail.foundNode = tail.info[i].node;
+                    tail.foundIndex = (tail.foundNode.nodeType === Node.TEXT_NODE) ?
+                        tmpIndex - tail.info[i].offset : tail.foundNode.childNodes.length;
                     return;
                 }
             }
-            tail.node = tailArray[0].node;
-            tail.index = (tail.node.nodeType === Node.TEXT_NODE) ?
-                tmpIndex + range.endOffset : tail.node.childNodes.length;
+            tail.foundNode = tail.info[0].node;
+            tail.foundIndex = (tail.foundNode.nodeType === Node.TEXT_NODE) ?
+                tmpIndex + range.endOffset : tail.foundNode.childNodes.length;
         }
         return;
     }
@@ -311,14 +309,16 @@ function select_sentence() {
             return;
         }
 
-        head.node = tail.node = null;
-        head.index = tail.index = -1;
-        headString = tailString = "";
+        head.foundNode = tail.foundNode = null;
+        head.foundIndex = tail.foundIndex = -1;
+        head.string = tail.string = "";
+        head.info.length = 0;
+        tail.info.length = 0;
 
         searchHeadOfSentence();
         searchTailOfSentence();
 
-        if (head.node === null || tail.node === null) {
+        if (head.foundNode === null || tail.foundNode === null) {
             alert('head-node or tail-node is null');
             return;
         }
@@ -326,8 +326,8 @@ function select_sentence() {
         chopHeadOfSentence();
         chopTailOfSentence(isLastRange);
 
-        range.setStart(head.node, head.index);
-        range.setEnd(tail.node, tail.index);
+        range.setStart(head.foundNode, head.foundIndex);
+        range.setEnd(tail.foundNode, tail.foundIndex);
         return;
     }
 
